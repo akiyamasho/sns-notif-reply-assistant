@@ -7,13 +7,13 @@
 <img src="doc/screenshot.jpg" width="300" />
 
 ### Key Features
-- NotificationListenerService filters packages: LinkedIn (com.linkedin.android), X (com.twitter.android), Instagram (com.instagram.android)
+- NotificationListenerService filters packages: LinkedIn (`com.linkedin.android`), X (`com.twitter.android`), Instagram (`com.instagram.android`)
 - Extracts title/text/timestamp and parses first URL if present
-- Persists posts and replies with Room (PostEntity, ReplyEntity)
-- Retrofit/OkHttp client calls OpenAI chat.completions (gpt-4o-mini)
+- Persists posts and replies with `Room` (`PostEntity`, `ReplyEntity`)
+- Retrofit/OkHttp client calls OpenAI `chat.completions` (`gpt-4o-mini`)
 - Platform-specific prompts (professional/witty/casual)
 - Jetpack Compose UI feed with expandable posts and copy buttons
-- Settings screen to store API key securely via Android Keystore (EncryptedSharedPreferences)
+- Settings screen to store API key securely via Android Keystore (`EncryptedSharedPreferences`)
 - Simple retry/backoff for API failures
 
 ### Setup
@@ -24,11 +24,11 @@
 5) Trigger notifications from LinkedIn/X/Instagram on the device; they will appear in the feed with generated replies.
 
 ### Development Notes
-- Model: gpt-4o-mini via /v1/chat/completions
+- Model: `gpt-4o-mini` via [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat)
 - Replies requested as a JSON array; fallback parsing splits lines if the model returns text.
 - Local-only storage; no external backend.
 - If generation fails, you can tap Retry on a post card.
 
 ### Security
-- API key stored in EncryptedSharedPreferences protected by Android Keystore.
+- API key stored in `EncryptedSharedPreferences` protected by Android Keystore.
 
