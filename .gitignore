@@ -1,0 +1,21 @@
+# IDE
+.idea/
+*.iml
+
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Local config
+local.properties
+.DS_Store
+
+# Android Studio generated
+captures/
+.navigation/
+.cxx/
+
+# Keystores
+*.jks
+*.keystore
