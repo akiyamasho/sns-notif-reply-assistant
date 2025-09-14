@@ -21,7 +21,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
@@ -34,8 +34,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.util.Log
 import com.example.snsassistant.data.db.PostWithReplies
 import com.example.snsassistant.util.ServiceLocator
+import com.example.snsassistant.util.PendingIntentStore
 import com.example.snsassistant.ui.viewmodel.FeedViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -134,10 +136,19 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                                 onRegenerate = { vm.retryFor(item.post.id) },
                                 onOpen = {
                                     val link = item.post.link
-                                    if (link.isNullOrBlank()) {
-                                        scope.launch { snack.showSnackbar("No link available") }
-                                    } else {
+                                    Log.i(
+                                        "FeedScreen",
+                                        "OpenInApp clicked: id=${item.post.id} platform=${item.post.platform} hasLink=${!link.isNullOrBlank()} link=${link ?: ""}"
+                                    )
+                                    if (!link.isNullOrBlank()) {
                                         openLinkPreferNative(context, item.post.platform, link)
+                                    } else {
+                                        // First, try to send the original notification PendingIntent (deepest link)
+                                        val piSent = PendingIntentStore.sendFor(item.post.id)
+                                        val opened = piSent || openPlatformApp(context, item.post.platform)
+                                        if (!opened) {
+                                            scope.launch { snack.showSnackbar("Could not open app") }
+                                        }
                                     }
                                 },
                                 isGenerating = isGenerating
@@ -199,7 +210,7 @@ private fun PostCard(
                 Spacer(Modifier.weight(1f))
                 if (!item.post.link.isNullOrBlank()) {
                     IconButton(onClick = onOpen) {
-                        Icon(Icons.Default.OpenInNew, contentDescription = "Open link")
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open link")
                     }
                 }
                 Text(text = ts, style = MaterialTheme.typography.bodySmall)
@@ -207,6 +218,13 @@ private fun PostCard(
             Spacer(Modifier.height(8.dp))
             Text(text = item.post.text, maxLines = if (expanded) Int.MAX_VALUE else 3)
             Spacer(Modifier.height(8.dp))
+            // Link to open the original post or just the app
+            TextButton(onClick = onOpen) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Open in app")
+            }
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = if (expanded) "Show less" else "Show replies",
                 color = MaterialTheme.colorScheme.primary,
@@ -278,16 +296,40 @@ private fun openNotificationAccess(context: Context) {
 
 private fun openLinkPreferNative(context: Context, platform: String, link: String) {
     val uri = Uri.parse(link)
-    val pkg = when (platform) {
-        "LinkedIn" -> "com.linkedin.android"
-        "X" -> "com.twitter.android"
-        "Instagram" -> "com.instagram.android"
-        else -> null
-    }
+    val pkg = platformPackage(platform)
     if (pkg != null) {
         val appIntent = Intent(Intent.ACTION_VIEW, uri).setPackage(pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (runCatching { context.startActivity(appIntent); true }.getOrDefault(false)) return
+        Log.i("FeedScreen", "OpenInApp intent (native): action=${appIntent.action} data=$uri pkg=$pkg flags=${appIntent.flags}")
+        val started = runCatching { context.startActivity(appIntent); true }.getOrDefault(false)
+        if (started) {
+            Log.i("FeedScreen", "OpenInApp: started native app for platform=$platform")
+            return
+        } else {
+            Log.w("FeedScreen", "OpenInApp: native app launch failed; falling back to web for platform=$platform")
+        }
     }
     val webIntent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    Log.i("FeedScreen", "OpenInApp intent (web): action=${webIntent.action} data=$uri flags=${webIntent.flags}")
     runCatching { context.startActivity(webIntent) }
+}
+
+private fun openPlatformApp(context: Context, platform: String): Boolean {
+    val pkg = platformPackage(platform) ?: return false
+    val launch = context.packageManager.getLaunchIntentForPackage(pkg)
+        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        ?: run {
+            Log.w("FeedScreen", "OpenInApp: no launch intent for package=$pkg (platform=$platform)")
+            return false
+        }
+    Log.i("FeedScreen", "OpenInApp intent (launch app): component=${launch.component} pkg=$pkg flags=${launch.flags}")
+    return runCatching { context.startActivity(launch); true }
+        .onFailure { Log.e("FeedScreen", "OpenInApp: failed to launch package=$pkg: ${it.message}") }
+        .getOrDefault(false)
+}
+
+private fun platformPackage(platform: String): String? = when (platform) {
+    "LinkedIn" -> "com.linkedin.android"
+    "X" -> "com.twitter.android"
+    "Instagram" -> "com.instagram.android"
+    else -> null
 }

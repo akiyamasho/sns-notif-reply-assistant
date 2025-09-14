@@ -7,6 +7,7 @@ import android.util.Log
 import com.example.snsassistant.util.Platform
 import com.example.snsassistant.util.ServiceLocator
 import com.example.snsassistant.util.UrlExtractor
+import com.example.snsassistant.util.PendingIntentStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,12 +43,16 @@ class SnsNotificationListenerService : NotificationListenerService() {
 
         scope.launch {
             try {
-                ServiceLocator.repository.addIncomingPost(
+                val id = ServiceLocator.repository.addIncomingPost(
                     platform.display,
                     combined.take(2000),
                     timestamp,
                     link
                 )
+                // Store the notification's PendingIntent so UI can jump exactly where the notif would
+                runCatching {
+                    PendingIntentStore.put(id, sbn.notification.contentIntent)
+                }
             } catch (t: Throwable) {
                 Log.e("NotifService", "Failed to save/generate: ${t.message}")
             }

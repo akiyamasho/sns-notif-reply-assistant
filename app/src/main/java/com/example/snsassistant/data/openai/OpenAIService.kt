@@ -75,21 +75,23 @@ class OpenAIClient(private val apiKeyProvider: ApiKeyProvider) {
                 """.trimIndent()
             )
             "X" -> (
-                basePersona + "\n" +
-                """
+                    basePersona + "\n" +
+                            """
                 X (Twitter) specific:
                 - Suggest 5 witty, concise replies.
                 - Each reply must be <= 280 characters.
                 - No hashtags or emojis. Avoid generic filler.
+                - If the post seems professional (announcements, engineering, product updates, research, career): reply professionally with insight and clarity.
+                - If the post reads like a meme or humorous/low-effort content: reply in an unhinged, witty manner (still respectful, PG-13, no slurs).
                 Output strictly a JSON array of 5 strings.
                 """.trimIndent()
-            )
+                    )
             "Instagram" -> (
-                basePersona + "\n" +
-                """
+                    basePersona + "\n" +
+                            """
                 Instagram specific:
-                - Suggest 5 casual, engaging comments (friendly and human), but no hashtags or emojis.
-                - Avoid generic comments or just praise; be specific and conversational.
+                - Suggest 5 witty, unhinged comments, but no hashtags or emojis.
+                - Avoid generic comments or just praise; be concise, direct to the point, and funny.
                 Output strictly a JSON array of 5 strings.
                 """.trimIndent()
             )
