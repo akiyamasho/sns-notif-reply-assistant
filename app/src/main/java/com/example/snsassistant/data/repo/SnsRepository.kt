@@ -28,10 +28,7 @@ class SnsRepository(
 
     suspend fun addIncomingPost(platform: String, text: String, timestamp: Long, link: String?): Long {
         val id = postDao.insert(PostEntity(platform = platform, text = text, timestamp = timestamp, link = link))
-        if (id > 0) {
-            // Fire-and-forget generation
-            appScope.launch { generateRepliesForPost(id) }
-        }
+        // Do not auto-generate replies. Generation is triggered manually from UI.
         return id
     }
 
@@ -80,5 +77,17 @@ class SnsRepository(
 
     suspend fun markUndone(postId: Long) {
         postDao.setDone(postId, false)
+    }
+
+    suspend fun deleteRepliesForPost(postId: Long) {
+        replyDao.deleteForPost(postId)
+    }
+
+    suspend fun deletePosts(ids: Collection<Long>) {
+        ids.forEach { id ->
+            // Ensure replies are removed first to maintain referential integrity expectations
+            replyDao.deleteForPost(id)
+            postDao.deleteById(id)
+        }
     }
 }

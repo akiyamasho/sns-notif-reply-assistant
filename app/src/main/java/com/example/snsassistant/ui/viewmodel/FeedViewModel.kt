@@ -13,17 +13,17 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class FeedViewModel(private val repo: SnsRepository) : ViewModel() {
-    enum class Filter { Incomplete, All }
+    enum class Filter { Todo, Done }
 
-    private val filter = MutableStateFlow(Filter.Incomplete)
+    private val filter = MutableStateFlow(Filter.Todo)
 
     val currentFilter: StateFlow<Filter> = filter
 
     val feed: StateFlow<List<PostWithReplies>> = repo.observeFeed()
         .combine(filter) { list, f ->
             when (f) {
-                Filter.Incomplete -> list.filter { !it.post.isDone }
-                Filter.All -> list
+                Filter.Todo -> list.filter { !it.post.isDone }
+                Filter.Done -> list.filter { it.post.isDone }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -51,5 +51,36 @@ class FeedViewModel(private val repo: SnsRepository) : ViewModel() {
         val current = _generating.value.toMutableSet()
         if (value) current.add(postId) else current.remove(postId)
         _generating.value = current
+    }
+
+    fun deleteReplies(postId: Long) {
+        viewModelScope.launch {
+            repo.deleteRepliesForPost(postId)
+        }
+    }
+
+    // Selection state for bulk actions on Done items
+    private val _selected = MutableStateFlow<Set<Long>>(emptySet())
+    val selected: StateFlow<Set<Long>> = _selected
+
+    fun toggleSelected(postId: Long) {
+        val cur = _selected.value.toMutableSet()
+        if (!cur.add(postId)) cur.remove(postId)
+        _selected.value = cur
+    }
+
+    fun clearSelection() { _selected.value = emptySet() }
+
+    fun deleteSelected() {
+        val ids = _selected.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            repo.deletePosts(ids)
+            clearSelection()
+        }
+    }
+
+    fun selectAll(ids: Collection<Long>) {
+        _selected.value = ids.toSet()
     }
 }

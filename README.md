@@ -21,7 +21,7 @@
 2) Run the app on a device (Notification Listener can’t be tested on emulators for third-party apps reliably).
 3) In-app, go to Settings and paste your OpenAI API key.
 4) Grant Notification Access when prompted or from Settings.
-5) Trigger notifications from LinkedIn/X/Instagram on the device; they will appear in the feed with generated replies.
+5) Trigger notifications from LinkedIn/X/Instagram on the device; they will appear in the feed. Tap "Generate Replies" on a post to generate suggestions on demand.
 
 ### Development Notes
 - Model: `gpt-4o-mini` via [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat)
@@ -31,4 +31,3 @@
 
 ### Security
 - API key stored in `EncryptedSharedPreferences` protected by Android Keystore.
-

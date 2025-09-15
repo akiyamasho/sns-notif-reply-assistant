@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -66,14 +67,20 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                 title = { Text(text = "SNS Reply Assistant") },
                 actions = {
                     val currentFilter by vm.currentFilter.collectAsState()
+                    val selected by vm.selected.collectAsState()
+                    if (currentFilter == FeedViewModel.Filter.Done && selected.isNotEmpty()) {
+                        IconButton(onClick = { vm.deleteSelected() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete selected")
+                        }
+                    }
                     IconButton(onClick = {
-                        if (currentFilter == FeedViewModel.Filter.Incomplete) vm.setFilter(FeedViewModel.Filter.All)
-                        else vm.setFilter(FeedViewModel.Filter.Incomplete)
+                        if (currentFilter == FeedViewModel.Filter.Todo) vm.setFilter(FeedViewModel.Filter.Done)
+                        else vm.setFilter(FeedViewModel.Filter.Todo)
                     }) {
-                        if (currentFilter == FeedViewModel.Filter.Incomplete) {
-                            Icon(Icons.Default.DoneAll, contentDescription = "Show all")
+                        if (currentFilter == FeedViewModel.Filter.Todo) {
+                            Icon(Icons.Default.DoneAll, contentDescription = "Show done")
                         } else {
-                            Icon(Icons.Default.FilterList, contentDescription = "Show incomplete")
+                            Icon(Icons.Default.FilterList, contentDescription = "Show to-do")
                         }
                     }
                     IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, contentDescription = null) }
@@ -87,10 +94,28 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                 NotificationAccessBanner(onOpen = { openNotificationAccess(context) })
             }
             val currentFilter by vm.currentFilter.collectAsState()
-            FilterRow(currentFilter = currentFilter, onSelect = { vm.setFilter(it) })
-            LazyColumn(Modifier.fillMaxSize()) {
+            val selectedIds by vm.selected.collectAsState()
+            val inDone = currentFilter == FeedViewModel.Filter.Done
+            val visibleDoneIds: Set<Long> = if (inDone) feed.map { it.post.id }.toSet() else emptySet()
+            val allSelected = inDone && visibleDoneIds.isNotEmpty() && visibleDoneIds.all { selectedIds.contains(it) }
+            FilterRow(
+                currentFilter = currentFilter,
+                onSelect = { vm.setFilter(it) },
+                showSelectAll = inDone,
+                allSelected = allSelected,
+                onToggleSelectAll = {
+                    if (allSelected) vm.clearSelection() else vm.selectAll(visibleDoneIds)
+                }
+            )
+            if (feed.isEmpty()) {
+                val label = if (currentFilter == FeedViewModel.Filter.Done) "No done notifications" else "No to-do notifications"
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(label)
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
                 items(feed, key = { it.post.id }) { item ->
-                    val isGenerating = generating.contains(item.post.id) || (item.replies.isEmpty() && item.post.lastError == null)
+                    val isGenerating = generating.contains(item.post.id)
                     val dismissState = rememberDismissState(
                         confirmStateChange = { value ->
                             if (value == DismissValue.DismissedToEnd || value == DismissValue.DismissedToStart) {
@@ -134,6 +159,7 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                                 item,
                                 onCopy = { reply -> clipboard.setText(AnnotatedString(reply)) },
                                 onRegenerate = { vm.retryFor(item.post.id) },
+                                onDeleteReplies = { vm.deleteReplies(item.post.id) },
                                 onOpen = {
                                     val link = item.post.link
                                     Log.i(
@@ -151,7 +177,10 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                                         }
                                     }
                                 },
-                                isGenerating = isGenerating
+                                isGenerating = isGenerating,
+                                showCheckbox = currentFilter == FeedViewModel.Filter.Done,
+                                checked = if (currentFilter == FeedViewModel.Filter.Done) selectedIds.contains(item.post.id) else false,
+                                onCheckedChange = { vm.toggleSelected(item.post.id) }
                             )
                         }
                     )
@@ -160,23 +189,37 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
         }
     }
 }
+}
 
 @Composable
-private fun FilterRow(currentFilter: FeedViewModel.Filter, onSelect: (FeedViewModel.Filter) -> Unit) {
+private fun FilterRow(
+    currentFilter: FeedViewModel.Filter,
+    onSelect: (FeedViewModel.Filter) -> Unit,
+    showSelectAll: Boolean,
+    allSelected: Boolean,
+    onToggleSelectAll: () -> Unit
+) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Filter:")
         Spacer(Modifier.width(8.dp))
         FilterChip(
-            selected = currentFilter == FeedViewModel.Filter.Incomplete,
-            onClick = { onSelect(FeedViewModel.Filter.Incomplete) },
-            label = { Text("Incomplete") }
+            selected = currentFilter == FeedViewModel.Filter.Todo,
+            onClick = { onSelect(FeedViewModel.Filter.Todo) },
+            label = { Text("To-do") }
         )
         Spacer(Modifier.width(8.dp))
         FilterChip(
-            selected = currentFilter == FeedViewModel.Filter.All,
-            onClick = { onSelect(FeedViewModel.Filter.All) },
-            label = { Text("All") }
+            selected = currentFilter == FeedViewModel.Filter.Done,
+            onClick = { onSelect(FeedViewModel.Filter.Done) },
+            label = { Text("Done") }
         )
+        Spacer(Modifier.weight(1f))
+        if (showSelectAll) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = allSelected, onCheckedChange = { onToggleSelectAll() })
+                Text("✅")
+            }
+        }
     }
 }
 
@@ -195,8 +238,12 @@ private fun PostCard(
     item: PostWithReplies,
     onCopy: (String) -> Unit,
     onRegenerate: () -> Unit,
+    onDeleteReplies: () -> Unit,
     onOpen: () -> Unit,
-    isGenerating: Boolean
+    isGenerating: Boolean,
+    showCheckbox: Boolean,
+    checked: Boolean,
+    onCheckedChange: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val sdf = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
@@ -204,6 +251,10 @@ private fun PostCard(
     Card(Modifier.fillMaxWidth().padding(8.dp)) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (showCheckbox) {
+                    Checkbox(checked = checked, onCheckedChange = { onCheckedChange() })
+                    Spacer(Modifier.width(4.dp))
+                }
                 Text(text = platformEmoji(item.post.platform), fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(8.dp))
                 Text(text = item.post.platform, style = MaterialTheme.typography.titleMedium)
@@ -225,10 +276,24 @@ private fun PostCard(
                 Text("Open in app")
             }
             Spacer(Modifier.height(4.dp))
+            val hasReplies = item.replies.isNotEmpty()
+            val collapsedLabel = if (hasReplies) "Show replies" else "Generate Replies"
+            val collapsedColor = if (hasReplies) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
             Text(
-                text = if (expanded) "Show less" else "Show replies",
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { expanded = !expanded }
+                text = if (expanded) "Show less" else collapsedLabel,
+                color = collapsedColor,
+                modifier = Modifier.clickable {
+                    if (expanded) {
+                        expanded = false
+                    } else {
+                        if (hasReplies) {
+                            expanded = true
+                        } else {
+                            if (!isGenerating) onRegenerate()
+                            expanded = true
+                        }
+                    }
+                }
             )
             if (expanded) {
                 Spacer(Modifier.height(8.dp))
@@ -251,7 +316,8 @@ private fun PostCard(
                                 )
                             }
                         }
-                        TextButton(onClick = onRegenerate, enabled = !isGenerating) { Text("Regenerate") }
+                        val actionLabel = if (item.replies.isEmpty()) "Generate" else "Regenerate"
+                        TextButton(onClick = onRegenerate, enabled = !isGenerating) { Text(actionLabel) }
                     }
                 } else {
                     // Show existing replies
@@ -269,7 +335,12 @@ private fun PostCard(
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = onRegenerate, enabled = !isGenerating) { Text("Regenerate") }
+                        if (item.post.isDone && item.replies.isNotEmpty()) {
+                            TextButton(onClick = onDeleteReplies, enabled = !isGenerating) { Text("Delete replies") }
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        val actionLabel = if (item.replies.isEmpty()) "Generate" else "Regenerate"
+                        TextButton(onClick = onRegenerate, enabled = !isGenerating) { Text(actionLabel) }
                     }
                 }
             }
