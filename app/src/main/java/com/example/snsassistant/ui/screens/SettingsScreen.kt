@@ -25,6 +25,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     })
 
     var apiKey by remember { mutableStateOf(vm.getApiKey()) }
+    var discordBotToken by remember { mutableStateOf(vm.getDiscordBotToken()) }
+    var discordChannelId by remember { mutableStateOf(vm.getDiscordChannelId()) }
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -44,8 +46,23 @@ fun SettingsScreen(onBack: () -> Unit) {
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth()
             )
+            OutlinedTextField(
+                value = discordBotToken,
+                onValueChange = { discordBotToken = it },
+                label = { Text("Discord Bot Token") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = discordChannelId,
+                onValueChange = { discordChannelId = it },
+                label = { Text("Discord Channel ID") },
+                modifier = Modifier.fillMaxWidth()
+            )
             Button(onClick = {
                 vm.saveApiKey(apiKey.trim())
+                vm.saveDiscordBotToken(discordBotToken.trim())
+                vm.saveDiscordChannelId(discordChannelId.trim())
                 scope.launch { snack.showSnackbar("Saved") }
             }) { Text("Save") }
 

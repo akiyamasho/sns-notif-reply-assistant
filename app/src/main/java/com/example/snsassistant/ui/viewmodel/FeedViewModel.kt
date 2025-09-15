@@ -59,6 +59,10 @@ class FeedViewModel(private val repo: SnsRepository) : ViewModel() {
         }
     }
 
+    fun resendToDiscord(postId: Long) {
+        viewModelScope.launch { repo.resendToDiscord(postId) }
+    }
+
     // Selection state for bulk actions on Done items
     private val _selected = MutableStateFlow<Set<Long>>(emptySet())
     val selected: StateFlow<Set<Long>> = _selected

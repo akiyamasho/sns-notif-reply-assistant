@@ -29,12 +29,14 @@ class SnsNotificationListenerService : NotificationListenerService() {
         if (combined.isBlank()) return
 
         // Platform-specific filtering rules
+        val lowered = combined.lowercase()
         val include = when (platform) {
             Platform.LinkedIn -> {
-                val lc = combined.lowercase()
+                val lc = lowered
                 lc.contains("posted:") && lc.contains("post from 5 requests per second")
             }
-            Platform.X, Platform.Instagram -> combined.contains(":")
+            Platform.X -> lowered.contains(":") && !lowered.contains("liked your comment:")
+            Platform.Instagram -> combined.contains(":")
         }
         if (!include) return
 

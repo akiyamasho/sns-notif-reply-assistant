@@ -12,5 +12,7 @@ interface ReplyDao {
 
     @Query("DELETE FROM replies WHERE postId = :postId")
     suspend fun deleteForPost(postId: Long)
-}
 
+    @Query("SELECT * FROM replies WHERE postId = :postId ORDER BY id ASC")
+    suspend fun getForPost(postId: Long): List<ReplyEntity>
+}

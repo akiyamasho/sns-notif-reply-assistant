@@ -8,6 +8,7 @@ import com.example.snsassistant.data.db.ReplyDao
 import com.example.snsassistant.data.db.ReplyEntity
 import com.example.snsassistant.data.openai.OpenAIClient
 import com.example.snsassistant.data.secure.SecurePrefs
+import com.example.snsassistant.data.discord.DiscordClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,7 +21,8 @@ class SnsRepository(
     private val postDao: PostDao,
     private val replyDao: ReplyDao,
     private val openAI: OpenAIClient,
-    private val securePrefs: SecurePrefs
+    private val securePrefs: SecurePrefs,
+    private val discord: DiscordClient = DiscordClient(securePrefs)
 ) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -28,7 +30,13 @@ class SnsRepository(
 
     suspend fun addIncomingPost(platform: String, text: String, timestamp: Long, link: String?): Long {
         val id = postDao.insert(PostEntity(platform = platform, text = text, timestamp = timestamp, link = link))
-        // Do not auto-generate replies. Generation is triggered manually from UI.
+        // Send to Discord immediately without waiting for replies
+        appScope.launch {
+            runCatching {
+                val post = postDao.getById(id) ?: return@launch
+                discord.sendPostWithReplies(post, emptyList())
+            }
+        }
         return id
     }
 
@@ -52,6 +60,13 @@ class SnsRepository(
                     replyDao.deleteForPost(postId)
                     replyDao.insertAll(capped.map { ReplyEntity(postId = postId, replyText = it) })
                     postDao.setLastError(postId, null)
+                    // Send to Discord (fire-and-forget)
+                    appScope.launch {
+                        runCatching {
+                            val entity = postDao.getById(postId) ?: return@launch
+                            discord.sendPostWithReplies(entity, capped)
+                        }
+                    }
                 } else {
                     postDao.setLastError(postId, "No suggestions returned.")
                 }
@@ -89,5 +104,11 @@ class SnsRepository(
             replyDao.deleteForPost(id)
             postDao.deleteById(id)
         }
+    }
+
+    suspend fun resendToDiscord(postId: Long) {
+        val post = postDao.getById(postId) ?: return
+        val replies = replyDao.getForPost(postId).map { it.replyText }
+        discord.sendPostWithReplies(post, replies)
     }
 }

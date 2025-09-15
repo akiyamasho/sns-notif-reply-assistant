@@ -49,10 +49,12 @@ import java.util.Locale
 @Composable
 fun FeedScreen(onOpenSettings: () -> Unit) {
     val repo = ServiceLocator.repository
-    val vm: FeedViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T = FeedViewModel(repo) as T
-    })
+    val vm: FeedViewModel =
+        viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                FeedViewModel(repo) as T
+        })
 
     val feed by vm.feed.collectAsState()
     val generating by vm.generating.collectAsState()
@@ -83,7 +85,12 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                             Icon(Icons.Default.FilterList, contentDescription = "Show to-do")
                         }
                     }
-                    IconButton(onClick = onOpenSettings) { Icon(Icons.Default.Settings, contentDescription = null) }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = null
+                        )
+                    }
                 }
             )
         },
@@ -96,8 +103,11 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
             val currentFilter by vm.currentFilter.collectAsState()
             val selectedIds by vm.selected.collectAsState()
             val inDone = currentFilter == FeedViewModel.Filter.Done
-            val visibleDoneIds: Set<Long> = if (inDone) feed.map { it.post.id }.toSet() else emptySet()
-            val allSelected = inDone && visibleDoneIds.isNotEmpty() && visibleDoneIds.all { selectedIds.contains(it) }
+            val visibleDoneIds: Set<Long> =
+                if (inDone) feed.map { it.post.id }.toSet() else emptySet()
+            val allSelected = inDone && visibleDoneIds.isNotEmpty() && visibleDoneIds.all {
+                selectedIds.contains(it)
+            }
             FilterRow(
                 currentFilter = currentFilter,
                 onSelect = { vm.setFilter(it) },
@@ -108,87 +118,102 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                 }
             )
             if (feed.isEmpty()) {
-                val label = if (currentFilter == FeedViewModel.Filter.Done) "No done notifications" else "No to-do notifications"
+                val label =
+                    if (currentFilter == FeedViewModel.Filter.Done) "No done notifications" else "No to-do notifications"
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(label)
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
-                items(feed, key = { it.post.id }) { item ->
-                    val isGenerating = generating.contains(item.post.id)
-                    val dismissState = rememberDismissState(
-                        confirmStateChange = { value ->
-                            if (value == DismissValue.DismissedToEnd || value == DismissValue.DismissedToStart) {
-                                vm.markDone(item.post.id)
-                                scope.launch {
-                                    val res = snack.showSnackbar(
-                                        message = "Marked done",
-                                        actionLabel = "Undo",
-                                        withDismissAction = false
-                                    )
-                                    if (res == SnackbarResult.ActionPerformed) {
-                                        vm.markUndone(item.post.id)
-                                    }
-                                }
-                            }
-                            // Prevent built-in removal; list updates via Flow
-                            false
-                        }
-                    )
-
-                    SwipeToDismiss(
-                        state = dismissState,
-                        directions = setOf(DismissDirection.StartToEnd, DismissDirection.EndToStart),
-                        background = {
-                            val target = if (dismissState.targetValue == DismissValue.Default) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.errorContainer
-                            val bg by animateColorAsState(target, label = "dismissBg")
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .background(bg)
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Done, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Done", color = MaterialTheme.colorScheme.onErrorContainer)
-                            }
-                        },
-                        dismissContent = {
-                            PostCard(
-                                item,
-                                onCopy = { reply -> clipboard.setText(AnnotatedString(reply)) },
-                                onRegenerate = { vm.retryFor(item.post.id) },
-                                onDeleteReplies = { vm.deleteReplies(item.post.id) },
-                                onOpen = {
-                                    val link = item.post.link
-                                    Log.i(
-                                        "FeedScreen",
-                                        "OpenInApp clicked: id=${item.post.id} platform=${item.post.platform} hasLink=${!link.isNullOrBlank()} link=${link ?: ""}"
-                                    )
-                                    if (!link.isNullOrBlank()) {
-                                        openLinkPreferNative(context, item.post.platform, link)
-                                    } else {
-                                        // First, try to send the original notification PendingIntent (deepest link)
-                                        val piSent = PendingIntentStore.sendFor(item.post.id)
-                                        val opened = piSent || openPlatformApp(context, item.post.platform)
-                                        if (!opened) {
-                                            scope.launch { snack.showSnackbar("Could not open app") }
+                    items(feed, key = { it.post.id }) { item ->
+                        val isGenerating = generating.contains(item.post.id)
+                        val dismissState = rememberDismissState(
+                            confirmStateChange = { value ->
+                                if (value == DismissValue.DismissedToEnd || value == DismissValue.DismissedToStart) {
+                                    vm.markDone(item.post.id)
+                                    scope.launch {
+                                        val res = snack.showSnackbar(
+                                            message = "Marked done",
+                                            actionLabel = "Undo",
+                                            withDismissAction = false
+                                        )
+                                        if (res == SnackbarResult.ActionPerformed) {
+                                            vm.markUndone(item.post.id)
                                         }
                                     }
-                                },
-                                isGenerating = isGenerating,
-                                showCheckbox = currentFilter == FeedViewModel.Filter.Done,
-                                checked = if (currentFilter == FeedViewModel.Filter.Done) selectedIds.contains(item.post.id) else false,
-                                onCheckedChange = { vm.toggleSelected(item.post.id) }
-                            )
-                        }
-                    )
+                                }
+                                // Prevent built-in removal; list updates via Flow
+                                false
+                            }
+                        )
+
+                        SwipeToDismiss(
+                            state = dismissState,
+                            directions = setOf(
+                                DismissDirection.StartToEnd,
+                                DismissDirection.EndToStart
+                            ),
+                            background = {
+                                val target =
+                                    if (dismissState.targetValue == DismissValue.Default) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.errorContainer
+                                val bg by animateColorAsState(target, label = "dismissBg")
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .background(bg)
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Done,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Done", color = MaterialTheme.colorScheme.onErrorContainer)
+                                }
+                            },
+                            dismissContent = {
+                                PostCard(
+                                    item,
+                                    onCopy = { reply -> clipboard.setText(AnnotatedString(reply)) },
+                                    onResend = { vm.resendToDiscord(item.post.id) },
+                                    onRegenerate = { vm.retryFor(item.post.id) },
+                                    onDeleteReplies = { vm.deleteReplies(item.post.id) },
+                                    onOpen = {
+                                        val link = item.post.link
+                                        Log.i(
+                                            "FeedScreen",
+                                            "OpenInApp clicked: id=${item.post.id} platform=${item.post.platform} hasLink=${!link.isNullOrBlank()} link=${link ?: ""}"
+                                        )
+                                        if (!link.isNullOrBlank()) {
+                                            openLinkPreferNative(context, item.post.platform, link)
+                                        } else {
+                                            // First, try to send the original notification PendingIntent (deepest link)
+                                            val piSent = PendingIntentStore.sendFor(item.post.id)
+                                            val opened = piSent || openPlatformApp(
+                                                context,
+                                                item.post.platform
+                                            )
+                                            if (!opened) {
+                                                scope.launch { snack.showSnackbar("Could not open app") }
+                                            }
+                                        }
+                                    },
+                                    isGenerating = isGenerating,
+                                    showCheckbox = currentFilter == FeedViewModel.Filter.Done,
+                                    checked = if (currentFilter == FeedViewModel.Filter.Done) selectedIds.contains(
+                                        item.post.id
+                                    ) else false,
+                                    onCheckedChange = { vm.toggleSelected(item.post.id) }
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
     }
-}
 }
 
 @Composable
@@ -237,6 +262,7 @@ private fun NotificationAccessBanner(onOpen: () -> Unit) {
 private fun PostCard(
     item: PostWithReplies,
     onCopy: (String) -> Unit,
+    onResend: () -> Unit,
     onRegenerate: () -> Unit,
     onDeleteReplies: () -> Unit,
     onOpen: () -> Unit,
@@ -269,16 +295,22 @@ private fun PostCard(
             Spacer(Modifier.height(8.dp))
             Text(text = item.post.text, maxLines = if (expanded) Int.MAX_VALUE else 3)
             Spacer(Modifier.height(8.dp))
-            // Link to open the original post or just the app
+            // Actions
             TextButton(onClick = onOpen) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
                 Text("Open in app")
             }
             Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onResend) {
+                Icon(Icons.Default.DoneAll, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Re-send to Discord")
+            }
+            Spacer(Modifier.height(4.dp))
             val hasReplies = item.replies.isNotEmpty()
             val collapsedLabel = if (hasReplies) "Show replies" else "Generate Replies"
-            val collapsedColor = if (hasReplies) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+            val collapsedColor = MaterialTheme.colorScheme.primary
             Text(
                 text = if (expanded) "Show less" else collapsedLabel,
                 color = collapsedColor,
@@ -298,7 +330,6 @@ private fun PostCard(
             if (expanded) {
                 Spacer(Modifier.height(8.dp))
                 if (isGenerating) {
-                    // Show a small progress indicator while generating
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(8.dp))
                 }
@@ -316,8 +347,7 @@ private fun PostCard(
                                 )
                             }
                         }
-                        val actionLabel = if (item.replies.isEmpty()) "Generate" else "Regenerate"
-                        TextButton(onClick = onRegenerate, enabled = !isGenerating) { Text(actionLabel) }
+                        TextButton(onClick = onRegenerate, enabled = !isGenerating) { Text("Generate") }
                     }
                 } else {
                     // Show existing replies
@@ -336,7 +366,7 @@ private fun PostCard(
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.weight(1f))
                         if (item.post.isDone && item.replies.isNotEmpty()) {
-                            TextButton(onClick = onDeleteReplies, enabled = !isGenerating) { Text("Delete replies") }
+                            TextButton(onClick = onDeleteReplies) { Text("Delete replies") }
                             Spacer(Modifier.width(8.dp))
                         }
                         val actionLabel = if (item.replies.isEmpty()) "Generate" else "Regenerate"
