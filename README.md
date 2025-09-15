@@ -1,5 +1,7 @@
 # SNS Reply Assistant (Android)
 
+# DISCLAIMER: If you're good at improv and can create witty comebacks quickly, this is not really useful lol
+
 ### Overview
 - A local-first assistant that listens for notifications from LinkedIn, X (Twitter), and Instagram; extracts text + metadata; calls OpenAI GPT-4o to generate 5 suggested replies; stores everything in Room; and shows a simple feed UI with copy-to-clipboard.
 - Note that this is for generating reply candidates for inspiration, and it is still the user's responsibility to decide which to post and which parts to edit before actually posting

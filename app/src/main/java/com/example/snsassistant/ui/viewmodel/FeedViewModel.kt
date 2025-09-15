@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.snsassistant.data.db.PostWithReplies
 import com.example.snsassistant.data.repo.SnsRepository
+import com.example.snsassistant.util.DebugStore
+import com.example.snsassistant.util.PendingIntentStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +63,11 @@ class FeedViewModel(private val repo: SnsRepository) : ViewModel() {
 
     fun resendToDiscord(postId: Long) {
         viewModelScope.launch { repo.resendToDiscord(postId) }
+    }
+
+    fun debugLog(postId: Long) {
+        DebugStore.logFor(postId)
+        PendingIntentStore.logInfo(postId)
     }
 
     // Selection state for bulk actions on Done items

@@ -4,10 +4,13 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import android.text.Spanned
+import android.text.style.URLSpan
 import com.example.snsassistant.util.Platform
 import com.example.snsassistant.util.ServiceLocator
 import com.example.snsassistant.util.UrlExtractor
 import com.example.snsassistant.util.PendingIntentStore
+import com.example.snsassistant.util.DebugStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,7 +43,7 @@ class SnsNotificationListenerService : NotificationListenerService() {
         }
         if (!include) return
 
-        val link = UrlExtractor.firstUrlFrom(combined)
+        val link = extractUrl(title) ?: extractUrl(text) ?: UrlExtractor.firstUrlFrom(combined)
         val timestamp = sbn.postTime
 
         scope.launch {
@@ -55,9 +58,46 @@ class SnsNotificationListenerService : NotificationListenerService() {
                 runCatching {
                     PendingIntentStore.put(id, sbn.notification.contentIntent)
                 }
+                // Capture debug snapshot for later viewing
+                runCatching {
+                    val dbg = buildString {
+                        appendLine("pkg=${sbn.packageName} id=${sbn.id} tag=${sbn.tag} postTime=${sbn.postTime}")
+                        appendLine("platform=${platform.display}")
+                        appendLine("title=${title}")
+                        appendLine("text=${text}")
+                        appendLine("extractedLink=${link ?: ""}")
+                        val n = sbn.notification
+                        appendLine("hasContentIntent=${n.contentIntent != null}")
+                        n.contentIntent?.let { pi ->
+                            appendLine("pi.creatorPackage=${pi.creatorPackage} creatorUid=${pi.creatorUid}")
+                        }
+                        val extras = n.extras
+                        appendLine("extras keys=${extras.keySet()}")
+                        extras.keySet().forEach { k ->
+                            val v = extras.get(k)
+                            appendLine("  $k=${v?.toString()?.take(300)}")
+                        }
+                        n.actions?.let { acts ->
+                            appendLine("actions=${acts.size}")
+                            acts.forEachIndexed { idx, a ->
+                                appendLine("  action[$idx] title=${a.title} hasIntent=${a.actionIntent != null}")
+                            }
+                        }
+                    }
+                    DebugStore.put(id, dbg)
+                }
             } catch (t: Throwable) {
                 Log.e("NotifService", "Failed to save/generate: ${t.message}")
             }
         }
     }
+}
+
+private fun extractUrl(cs: CharSequence?): String? {
+    if (cs == null) return null
+    if (cs is Spanned) {
+        val spans = cs.getSpans(0, cs.length, URLSpan::class.java)
+        if (spans.isNotEmpty()) return spans.first().url
+    }
+    return UrlExtractor.firstUrlFrom(cs.toString())
 }

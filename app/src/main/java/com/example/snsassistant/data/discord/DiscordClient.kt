@@ -1,6 +1,7 @@
 package com.example.snsassistant.data.discord
 
 import android.util.Log
+import android.net.Uri
 import com.example.snsassistant.data.db.PostEntity
 import com.example.snsassistant.data.secure.SecurePrefs
 import kotlinx.coroutines.Dispatchers
@@ -30,9 +31,10 @@ class DiscordClient(private val prefs: SecurePrefs) {
             // Body: original notification text
             append(post.text.take(1200))
             append('\n')
-            if (!post.link.isNullOrBlank()) {
+            val normalized = normalizeLink(post.platform, post.link)
+            if (!normalized.isNullOrBlank()) {
                 append("Link: ")
-                append(post.link)
+                append(normalized)
                 append('\n')
             }
             if (replies.isNotEmpty()) {
@@ -82,4 +84,28 @@ private fun platformEmoji(platform: String): String = when (platform) {
     "X" -> "✖️"
     "Instagram" -> "📸"
     else -> "💬"
+}
+
+private fun normalizeLink(platform: String, link: String?): String? {
+    val raw = link?.trim().orEmpty()
+    if (raw.isBlank()) return null
+    return when (platform) {
+        "X" -> normalizeTwitterLink(raw)
+        else -> raw
+    }
+}
+
+private fun normalizeTwitterLink(link: String): String {
+    return try {
+        val uri = Uri.parse(link)
+        if (uri.scheme.equals("twitter", ignoreCase = true) || uri.scheme.equals("x", ignoreCase = true)) {
+            val id = uri.getQueryParameter("status_id")
+                ?: uri.getQueryParameter("id")
+                ?: uri.getQueryParameter("tweet_id")
+            if (!id.isNullOrBlank()) return "https://x.com/i/web/status/$id"
+        }
+        link
+    } catch (_: Throwable) {
+        link
+    }
 }

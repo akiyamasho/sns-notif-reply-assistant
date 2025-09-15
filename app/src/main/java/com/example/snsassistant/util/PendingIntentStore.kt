@@ -26,5 +26,16 @@ object PendingIntentStore {
         }.onFailure { Log.e("PendingIntentStore", "Failed to send PendingIntent for postId=$postId: ${it.message}") }
             .getOrDefault(false)
     }
-}
 
+    fun logInfo(postId: Long) {
+        val pi = map[postId]
+        if (pi == null) {
+            Log.w("PendingIntentStore", "No PendingIntent for postId=$postId")
+        } else {
+            Log.i(
+                "PendingIntentStore",
+                "PendingIntent info: creatorPackage=${pi.creatorPackage} creatorUid=${pi.creatorUid} toString=${pi}"
+            )
+        }
+    }
+}

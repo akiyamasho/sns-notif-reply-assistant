@@ -177,6 +177,7 @@ fun FeedScreen(onOpenSettings: () -> Unit) {
                                 PostCard(
                                     item,
                                     onCopy = { reply -> clipboard.setText(AnnotatedString(reply)) },
+                                    onDebug = { vm.debugLog(item.post.id) },
                                     onResend = { vm.resendToDiscord(item.post.id) },
                                     onRegenerate = { vm.retryFor(item.post.id) },
                                     onDeleteReplies = { vm.deleteReplies(item.post.id) },
@@ -262,6 +263,7 @@ private fun NotificationAccessBanner(onOpen: () -> Unit) {
 private fun PostCard(
     item: PostWithReplies,
     onCopy: (String) -> Unit,
+    onDebug: () -> Unit,
     onResend: () -> Unit,
     onRegenerate: () -> Unit,
     onDeleteReplies: () -> Unit,
@@ -306,6 +308,12 @@ private fun PostCard(
                 Icon(Icons.Default.DoneAll, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
                 Text("Re-send to Discord")
+            }
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onDebug) {
+                Icon(Icons.Default.Settings, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Debug log")
             }
             Spacer(Modifier.height(4.dp))
             val hasReplies = item.replies.isNotEmpty()
